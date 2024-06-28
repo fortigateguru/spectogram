@@ -1,69 +1,64 @@
 import streamlit as st
-import numpy as np
-import matplotlib.pyplot as plt
 import librosa
 import librosa.display
-import io
-import base64
+import matplotlib.pyplot as plt
+import speech_recognition as sr
+from transformers import pipeline
+import numpy as np
 
-# Function to load audio and compute MFCC
-def compute_mfcc(audio_file):
-    y, sr = librosa.load(audio_file, sr=None)
-    mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
-    return mfccs, sr, y
+# Title of the Streamlit app
+st.title('Audio Analysis with MFCC and Sentiment Analysis')
 
-# Function to create a downloadable report
-def create_download_link(val, filename):
-    b64 = base64.b64encode(val)  # val looks like b'...'
-    return f'<a href="data:application/octet-stream;base64,{b64.decode()}" download="{filename}">Download {filename}</a>'
-
-# Streamlit UI
-st.title("MFCC Spectrogram Generator and Report")
-
-# File uploader
-audio_file = st.file_uploader("Upload an audio file", type=["wav", "mp3"])
+# File uploader to upload an audio file
+audio_file = st.file_uploader("Upload an audio file", type=["wav", "mp3", "ogg"])
 
 if audio_file is not None:
-    # Compute MFCC
-    mfccs, sr, y = compute_mfcc(audio_file)
+    # Load the audio file
+    y, sr = librosa.load(audio_file, sr=None)
+    
+    # Extract MFCC features
+    mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=40)
     
     # Plot MFCC
-    fig, ax = plt.subplots()
-    img = librosa.display.specshow(mfccs, sr=sr, x_axis='time', ax=ax)
-    fig.colorbar(img, ax=ax)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    img = librosa.display.specshow(mfccs, x_axis='time', ax=ax)
+    fig.colorbar(img, ax=ax, format="%+2.0f dB")
     ax.set(title='MFCC')
-    
-    # Display plot in Streamlit
     st.pyplot(fig)
+    
+    # Initialize the recognizer
+    recognizer = sr.Recognizer()
+    
+    # Convert audio to text
+    with sr.AudioFile(audio_file) as source:
+        audio_data = recognizer.record(source)
+    
+    try:
+        text = recognizer.recognize_google(audio_data)
+        st.write("Transcribed Text:")
+        st.write(text)
+    except sr.UnknownValueError:
+        st.write("Google Speech Recognition could not understand audio")
+        text = ""
+    except sr.RequestError as e:
+        st.write(f"Could not request results from Google Speech Recognition service; {e}")
+        text = ""
+    
+    # Perform sentiment analysis
+    if text:
+        sentiment_pipeline = pipeline('sentiment-analysis')
+        result = sentiment_pipeline(text)
+        sentiment_label = result[0]['label']
+        sentiment_score = result[0]['score']
+        
+        st.write("Sentiment Analysis Result:")
+        st.write(f"Sentiment: {sentiment_label}, Score: {sentiment_score}")
 
-    # Create downloadable report
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png")
-    st.markdown(create_download_link(buf.getvalue(), "mfcc_spectrogram.png"), unsafe_allow_html=True)
-
-    # Additional Analysis: Display waveform
-    st.markdown("### Waveform")
-    fig_waveform, ax_waveform = plt.subplots()
-    librosa.display.waveshow(y, sr=sr, ax=ax_waveform)
-    ax_waveform.set(title="Waveform")
-    st.pyplot(fig_waveform)
-
-    buf_waveform = io.BytesIO()
-    fig_waveform.savefig(buf_waveform, format="png")
-    st.markdown(create_download_link(buf_waveform.getvalue(), "waveform.png"), unsafe_allow_html=True)
-
-    # Display a summary of the audio
-    st.markdown("### Audio Summary")
-    duration = librosa.get_duration(y=y, sr=sr)
-    st.write(f"Duration: {duration:.2f} seconds")
-    st.write(f"Sampling Rate: {sr} Hz")
-
-    # Save the waveform and MFCC as downloadable report
-    st.markdown("### Downloadable Report")
-    report = f"Audio File: {audio_file.name}\n"
-    report += f"Duration: {duration:.2f} seconds\n"
-    report += f"Sampling Rate: {sr} Hz\n"
-
-    report_buf = io.BytesIO()
-    report_buf.write(report.encode('utf-8'))
-    st.markdown(create_download_link(report_buf.getvalue(), "audio_report.txt"), unsafe_allow_html=True)
+# Instructions
+st.write("""
+## Instructions
+1. Upload an audio file in WAV, MP3, or OGG format.
+2. The app will display the MFCC spectrogram of the audio.
+3. The app will transcribe the audio to text using Google's Speech Recognition.
+4. The app will perform sentiment analysis on the transcribed text and display the result.
+""")

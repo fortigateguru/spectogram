@@ -13,6 +13,7 @@ try:
 except ImportError as e:
     missing_package = str(e).split()[-1]
     st.error(f"Required package {missing_package} is not installed. Please install it using the requirements.txt.")
+    st.stop()
 
 # Title of the Streamlit app
 st.title('Audio Analysis with MFCC and Sentiment Analysis')

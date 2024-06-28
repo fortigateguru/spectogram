@@ -4,4 +4,3 @@ SpeechRecognition==3.8.1
 transformers==4.18.0
 matplotlib==3.5.1
 numpy==1.21.2
-ffmpeg-python==0.2.0

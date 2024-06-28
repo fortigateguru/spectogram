@@ -1,88 +1,49 @@
 import streamlit as st
-import librosa
 import numpy as np
 import matplotlib.pyplot as plt
+import librosa
 import librosa.display
-import io
+from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, ClientSettings
 
-# Function to load audio and compute MFCC
-def compute_mfcc(audio_file):
-    y, sr = librosa.load(audio_file, sr=None)
-    mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
-    return mfccs, sr
+# Custom AudioProcessor to handle audio streaming
+class AudioProcessor(AudioProcessorBase):
+    def __init__(self):
+        self.sr = 16000  # Sampling rate
+        self.chunk_size = 1024  # Number of samples per chunk
+        self.audio_buffer = []
 
-# Function to apply audio effects
-def apply_audio_effect(y, effect):
-    if effect == 'Pitch Shift':
-        y = librosa.effects.pitch_shift(y, sr, n_steps=4)
-    elif effect == 'Time Stretch':
-        y = librosa.effects.time_stretch(y, 1.5)
-    elif effect == 'Reverb':
-        y = librosa.effects.preemphasis(y)
-    return y
+    def recv(self, frame):
+        audio_frame = frame.to_ndarray()
+        self.audio_buffer.extend(audio_frame)
+
+        if len(self.audio_buffer) >= self.sr:
+            y = np.array(self.audio_buffer[:self.sr])
+            self.audio_buffer = self.audio_buffer[self.sr:]
+
+            mfccs = librosa.feature.mfcc(y=y, sr=self.sr, n_mfcc=13)
+            fig, ax = plt.subplots()
+            img = librosa.display.specshow(mfccs, sr=self.sr, x_axis='time', ax=ax)
+            fig.colorbar(img, ax=ax)
+            ax.set(title='Real-time MFCC')
+
+            st.pyplot(fig)
+
+        return frame
 
 # Streamlit UI
-st.title("Advanced MFCC Spectrogram Generator")
+st.title("Real-time MFCC Spectrogram Generator")
 
-# File uploader
-audio_file = st.file_uploader("Upload an audio file", type=["wav", "mp3"])
+st.markdown("""
+This application captures audio from your microphone and displays the MFCC spectrogram in real-time.
+""")
 
-if audio_file is not None:
-    try:
-        y, sr = librosa.load(audio_file, sr=None)
-        st.write(f"Audio file loaded successfully: {audio_file.name}")
-
-        # Select audio effect
-        effect = st.selectbox("Choose an audio effect", ["None", "Pitch Shift", "Time Stretch", "Reverb"])
-        
-        if effect != "None":
-            y = apply_audio_effect(y, effect)
-        
-        # Compute MFCC
-        mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
-        st.write("MFCC computation successful")
-
-        # Plot MFCC
-        fig, ax = plt.subplots()
-        img = librosa.display.specshow(mfccs, sr=sr, x_axis='time', ax=ax)
-        fig.colorbar(img, ax=ax)
-        ax.set(title='MFCC')
-
-        # Display plot in Streamlit
-        st.pyplot(fig)
-
-        # Downloadable report
-        buf = io.BytesIO()
-        fig.savefig(buf, format="png")
-        st.download_button(label="Download Spectrogram", data=buf, file_name="spectrogram.png", mime="image/png")
-
-        # Educational content
-        st.markdown("""
-        ### What is MFCC?
-        Mel-frequency cepstral coefficients (MFCCs) are coefficients that collectively make up an MFC. They are derived from a type of cepstral representation of the audio clip (a nonlinear "spectrum-of-a-spectrum").
-        
-        ### Applications of MFCC
-        - **Speech Recognition**: Used in various speech recognition systems to recognize spoken words.
-        - **Music Information Retrieval**: Helps in identifying and classifying different genres of music.
-        - **Acoustic Fingerprinting**: Used for recognizing audio clips by their unique "fingerprint".
-        """)
-
-        # Compare with another file
-        compare_file = st.file_uploader("Upload another audio file to compare", type=["wav", "mp3"])
-        if compare_file is not None:
-            y_compare, sr_compare = librosa.load(compare_file, sr=None)
-            mfccs_compare = librosa.feature.mfcc(y=y_compare, sr=sr_compare, n_mfcc=13)
-            
-            # Plot comparison
-            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
-            img1 = librosa.display.specshow(mfccs, sr=sr, x_axis='time', ax=ax1)
-            ax1.set(title='Original MFCC')
-            fig.colorbar(img1, ax=ax1)
-            
-            img2 = librosa.display.specshow(mfccs_compare, sr=sr_compare, x_axis='time', ax=ax2)
-            ax2.set(title='Comparison MFCC')
-            fig.colorbar(img2, ax=ax2)
-            
-            st.pyplot(fig)
-    except Exception as e:
-        st.error(f"An error occurred: {e}")
+# WebRTC settings
+webrtc_streamer(
+    key="audio",
+    mode=ClientSettings.Mode.AUDIO_ONLY,
+    audio_processor_factory=AudioProcessor,
+    client_settings=ClientSettings(
+        rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+        media_stream_constraints={"audio": True, "video": False},
+    ),
+)

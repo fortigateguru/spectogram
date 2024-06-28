@@ -3,47 +3,67 @@ import numpy as np
 import matplotlib.pyplot as plt
 import librosa
 import librosa.display
-from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, ClientSettings
+import io
+import base64
 
-# Custom AudioProcessor to handle audio streaming
-class AudioProcessor(AudioProcessorBase):
-    def __init__(self):
-        self.sr = 16000  # Sampling rate
-        self.chunk_size = 1024  # Number of samples per chunk
-        self.audio_buffer = []
+# Function to load audio and compute MFCC
+def compute_mfcc(audio_file):
+    y, sr = librosa.load(audio_file, sr=None)
+    mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
+    return mfccs, sr, y
 
-    def recv(self, frame):
-        audio_frame = frame.to_ndarray()
-        self.audio_buffer.extend(audio_frame)
-
-        if len(self.audio_buffer) >= self.sr:
-            y = np.array(self.audio_buffer[:self.sr])
-            self.audio_buffer = self.audio_buffer[self.sr:]
-
-            mfccs = librosa.feature.mfcc(y=y, sr=self.sr, n_mfcc=13)
-            fig, ax = plt.subplots()
-            img = librosa.display.specshow(mfccs, sr=self.sr, x_axis='time', ax=ax)
-            fig.colorbar(img, ax=ax)
-            ax.set(title='Real-time MFCC')
-
-            st.pyplot(fig)
-
-        return frame
+# Function to create a downloadable report
+def create_download_link(val, filename):
+    b64 = base64.b64encode(val)  # val looks like b'...'
+    return f'<a href="data:application/octet-stream;base64,{b64.decode()}" download="{filename}">Download {filename}</a>'
 
 # Streamlit UI
-st.title("Real-time MFCC Spectrogram Generator")
+st.title("MFCC Spectrogram Generator and Report")
 
-st.markdown("""
-This application captures audio from your microphone and displays the MFCC spectrogram in real-time.
-""")
+# File uploader
+audio_file = st.file_uploader("Upload an audio file", type=["wav", "mp3"])
 
-# WebRTC settings
-webrtc_streamer(
-    key="audio",
-    mode=ClientSettings.Mode.AUDIO_ONLY,
-    audio_processor_factory=AudioProcessor,
-    client_settings=ClientSettings(
-        rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
-        media_stream_constraints={"audio": True, "video": False},
-    ),
-)
+if audio_file is not None:
+    # Compute MFCC
+    mfccs, sr, y = compute_mfcc(audio_file)
+    
+    # Plot MFCC
+    fig, ax = plt.subplots()
+    img = librosa.display.specshow(mfccs, sr=sr, x_axis='time', ax=ax)
+    fig.colorbar(img, ax=ax)
+    ax.set(title='MFCC')
+    
+    # Display plot in Streamlit
+    st.pyplot(fig)
+
+    # Create downloadable report
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png")
+    st.markdown(create_download_link(buf.getvalue(), "mfcc_spectrogram.png"), unsafe_allow_html=True)
+
+    # Additional Analysis: Display waveform
+    st.markdown("### Waveform")
+    fig_waveform, ax_waveform = plt.subplots()
+    librosa.display.waveshow(y, sr=sr, ax=ax_waveform)
+    ax_waveform.set(title="Waveform")
+    st.pyplot(fig_waveform)
+
+    buf_waveform = io.BytesIO()
+    fig_waveform.savefig(buf_waveform, format="png")
+    st.markdown(create_download_link(buf_waveform.getvalue(), "waveform.png"), unsafe_allow_html=True)
+
+    # Display a summary of the audio
+    st.markdown("### Audio Summary")
+    duration = librosa.get_duration(y=y, sr=sr)
+    st.write(f"Duration: {duration:.2f} seconds")
+    st.write(f"Sampling Rate: {sr} Hz")
+
+    # Save the waveform and MFCC as downloadable report
+    st.markdown("### Downloadable Report")
+    report = f"Audio File: {audio_file.name}\n"
+    report += f"Duration: {duration:.2f} seconds\n"
+    report += f"Sampling Rate: {sr} Hz\n"
+
+    report_buf = io.BytesIO()
+    report_buf.write(report.encode('utf-8'))
+    st.markdown(create_download_link(report_buf.getvalue(), "audio_report.txt"), unsafe_allow_html=True)

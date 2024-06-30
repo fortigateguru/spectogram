@@ -1,88 +1,95 @@
 import streamlit as st
+import re
+from collections import Counter
+import ipaddress
+import pandas as pd
+import plotly.express as px
+from streamlit_extras.switch_page_button import switch_page
+from streamlit_extras.colored_header import colored_header
+from streamlit_extras.add_vertical_space import add_vertical_space
+import traceback
 
-# Check if necessary packages are installed
-try:
-    import librosa
-    import librosa.display
-    import matplotlib.pyplot as plt
-    import speech_recognition as sr
-    from transformers import pipeline
-    import numpy as np
-    import subprocess
-    import tempfile
-except ImportError as e:
-    missing_package = str(e).split()[-1]
-    st.error(f"Required package {missing_package} is not installed. Please install it using the requirements.txt.")
-    st.stop()
+# Set page config for a wider layout
+st.set_page_config(layout="wide", page_title="Network Config Analyzer", page_icon="🌐")
 
-# Title of the Streamlit app
-st.title('Audio Analysis with MFCC and Sentiment Analysis')
+# Placeholder for analyze_config function
+def analyze_config(config_text, device_type):
+    # Placeholder logic for demonstration
+    analysis = {
+        'hostname': 'example-hostname',
+        'num_ip_addresses': 5,
+        'ip_addresses': ['192.168.1.1', '192.168.1.2', '192.168.1.3', '192.168.1.4', '192.168.1.5'],
+        'unused_ips': ['192.168.1.4', '192.168.1.5'],
+        'num_access_lists': 3,
+        'policies': [{'id': 1}, {'id': 2}, {'id': 3}]
+    }
+    return analysis
 
-# File uploader to upload an audio file
-audio_file = st.file_uploader("Upload an audio file", type=["wav", "mp3", "ogg", "opus"])
-
-if audio_file is not None:
-    # Save uploaded file temporarily
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".opus") as temp_audio_file:
-        temp_audio_file.write(audio_file.getbuffer())
-        temp_audio_path = temp_audio_file.name
-    
-    # Convert Opus file to WAV using ffmpeg if necessary
-    if audio_file.type == "audio/opus":
-        wav_temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
-        wav_temp_path = wav_temp_file.name
-        wav_temp_file.close()
-        subprocess.run(['ffmpeg', '-i', temp_audio_path, wav_temp_path], check=True)
-        audio_path = wav_temp_path
-    else:
-        audio_path = temp_audio_path
-
-    # Load the audio file
-    y, sr = librosa.load(audio_path, sr=None)
-    
-    # Extract MFCC features
-    mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=40)
-    
-    # Plot MFCC
-    fig, ax = plt.subplots(figsize=(10, 6))
-    img = librosa.display.specshow(mfccs, x_axis='time', ax=ax)
-    fig.colorbar(img, ax=ax, format="%+2.0f dB")
-    ax.set(title='MFCC')
-    st.pyplot(fig)
-    
-    # Initialize the recognizer
-    recognizer = sr.Recognizer()
-    
-    # Convert audio to text
-    with sr.AudioFile(audio_path) as source:
-        audio_data = recognizer.record(source)
-    
+# Main function
+def main():
     try:
-        text = recognizer.recognize_google(audio_data)
-        st.write("Transcribed Text:")
-        st.write(text)
-    except sr.UnknownValueError:
-        st.write("Google Speech Recognition could not understand audio")
-        text = ""
-    except sr.RequestError as e:
-        st.write(f"Could not request results from Google Speech Recognition service; {e}")
-        text = ""
-    
-    # Perform sentiment analysis
-    if text:
-        sentiment_pipeline = pipeline('sentiment-analysis')
-        result = sentiment_pipeline(text)
-        sentiment_label = result[0]['label']
-        sentiment_score = result[0]['score']
-        
-        st.write("Sentiment Analysis Result:")
-        st.write(f"Sentiment: {sentiment_label}, Score: {sentiment_score}")
+        st.title("Network Configuration Analyzer")
+        colored_header(label="Network Configuration Analyzer", description="Analyze your network device configurations", color_name="green-70")
+        add_vertical_space(2)
 
-# Instructions
-st.write("""
-## Instructions
-1. Upload an audio file in WAV, MP3, OGG, or Opus format.
-2. The app will display the MFCC spectrogram of the audio.
-3. The app will transcribe the audio to text using Google's Speech Recognition.
-4. The app will perform sentiment analysis on the transcribed text and display the result.
-""")
+        col1, col2 = st.columns([2, 1])
+
+        with col1:
+            # File uploader
+            uploaded_file = st.file_uploader("Choose a configuration file", type="txt")
+
+        with col2:
+            # Device type selector
+            device_type = st.selectbox("Select device type", ["Cisco", "Fortigate"])
+
+        if uploaded_file is not None:
+            try:
+                # Read and analyze the config file
+                config_text = uploaded_file.getvalue().decode("utf-8")
+                analysis = analyze_config(config_text, device_type)
+
+                # Display results
+                st.header("Analysis Results")
+
+                # Create three columns for key metrics
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Hostname", analysis['hostname'])
+                with col2:
+                    st.metric("Unique IP Addresses", analysis['num_ip_addresses'])
+                with col3:
+                    if device_type == "Cisco":
+                        st.metric("Access Lists", analysis['num_access_lists'])
+                    elif device_type == "Fortigate":
+                        st.metric("Firewall Policies", len(analysis['policies']))
+
+                add_vertical_space(2)
+
+                # Tabs for different sections
+                tab1, tab2, tab3, tab4 = st.tabs(["IP Addresses", "Interfaces", "Access Lists/Policies", "Routes"])
+
+                with tab1:
+                    # IP address analysis
+                    st.subheader("IP Address Analysis")
+                    ip_df = pd.DataFrame({
+                        'IP Address': analysis['ip_addresses'],
+                        'Status': ['Used' if ip not in analysis['unused_ips'] else 'Unused' for ip in analysis['ip_addresses']]
+                    })
+                    fig = px.pie(ip_df, names='Status', title='IP Address Usage')
+                    st.plotly_chart(fig)
+                    st.dataframe(ip_df)
+
+                # Placeholder for other tabs
+
+            except Exception as e:
+                st.error(f"An error occurred while analyzing the configuration: {str(e)}")
+                st.text("Traceback:")
+                st.text(traceback.format_exc())
+
+    except Exception as e:
+        st.error(f"An unexpected error occurred: {str(e)}")
+        st.text("Traceback:")
+        st.text(traceback.format_exc())
+
+if __name__ == "__main__":
+    main()

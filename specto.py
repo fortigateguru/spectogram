@@ -1,24 +1,38 @@
 import streamlit as st
-import numpy as np
-import librosa
-import librosa.display
-import matplotlib.pyplot as plt
+import re
 
-st.title("MFCC Spectrogram Viewer")
+# Define regular expressions for different patterns
+regex_patterns = {
+    "Email Addresses": r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+',
+    "Telephone Numbers": r'\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}',
+    "Dates (MM/DD/YYYY)": r'\b(0?[1-9]|1[0-2])[/-](0?[1-9]|[12][0-9]|3[01])[/-](19|20)?\d{2}\b',
+    "URLs": r'(https?://[^\s]+)'
+}
 
-uploaded_file = st.file_uploader("Choose an audio file...", type=["wav", "mp3"])
+# Streamlit app layout
+st.title('Regular Expression Pattern Finder')
+st.write('Enter your text below and select the pattern you want to search for.')
 
-if uploaded_file is not None:
-    try:
-        y, sr = librosa.load(uploaded_file, sr=None)
-        mfccs = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
-        fig, ax = plt.subplots()
-        img = librosa.display.specshow(mfccs, x_axis='time', ax=ax)
-        ax.set(title='MFCC')
-        fig.colorbar(img, ax=ax)
-        st.pyplot(fig)
-        st.write("MFCCs:", mfccs)
-    except Exception as e:
-        st.error(f"Error processing the audio file: {e}")
+# Text input box
+user_text = st.text_area('Enter text here:', height=200)
 
-st.markdown("Developed by [Your Name]")
+# Dropdown menu for selecting pattern
+pattern = st.selectbox('Select pattern to search for:', list(regex_patterns.keys()))
+
+# Button to initiate search
+if st.button('Find Pattern'):
+    if user_text:
+        # Find all matches for the selected pattern
+        matches = re.findall(regex_patterns[pattern], user_text)
+        
+        if matches:
+            st.write(f"Found {len(matches)} matches for {pattern}:")
+            for match in matches:
+                st.write(match)
+        else:
+            st.write(f"No matches found for {pattern}.")
+    else:
+        st.write("Please enter some text to search.")
+
+# Footer
+st.write("Powered by [Streamlit](https://streamlit.io/) and [Python](https://www.python.org/).")

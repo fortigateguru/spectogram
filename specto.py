@@ -4,18 +4,31 @@ import numpy as np
 from PIL import Image
 
 def apply_filter(image, filter_name):
+    # Convert PIL Image to numpy array
+    image_np = np.array(image)
+    
+    # Convert RGB to BGR (OpenCV uses BGR)
+    image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+    
     if filter_name == "Grayscale":
-        return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        filtered = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
     elif filter_name == "Blur":
-        return cv2.GaussianBlur(image, (15, 15), 0)
+        filtered = cv2.GaussianBlur(image_bgr, (15, 15), 0)
     elif filter_name == "Edge Detection":
-        return cv2.Canny(image, 100, 200)
+        filtered = cv2.Canny(cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY), 100, 200)
     elif filter_name == "Sepia":
         sepia_filter = np.array([[0.272, 0.534, 0.131],
                                  [0.349, 0.686, 0.168],
                                  [0.393, 0.769, 0.189]])
-        return cv2.transform(image, sepia_filter)
-    return image
+        filtered = cv2.transform(image_bgr, sepia_filter)
+    else:
+        filtered = image_bgr
+    
+    # Convert back to RGB for displaying
+    if len(filtered.shape) == 2:  # If grayscale
+        return cv2.cvtColor(filtered, cv2.COLOR_GRAY2RGB)
+    else:
+        return cv2.cvtColor(filtered, cv2.COLOR_BGR2RGB)
 
 def main():
     st.title("Image Filter App")
@@ -24,27 +37,23 @@ def main():
     
     if uploaded_file is not None:
         image = Image.open(uploaded_file)
-        image = np.array(image)
         
         filter_name = st.selectbox(
             "Choose a filter",
             ("Original", "Grayscale", "Blur", "Edge Detection", "Sepia")
         )
         
-        if filter_name != "Original":
-            filtered_image = apply_filter(image, filter_name)
-        else:
-            filtered_image = image
+        filtered_image = apply_filter(image, filter_name)
         
         col1, col2 = st.columns(2)
         
         with col1:
             st.subheader("Original Image")
-            st.image(image, channels="BGR")
+            st.image(image, use_column_width=True)
         
         with col2:
             st.subheader(f"{filter_name} Filter")
-            st.image(filtered_image, channels="BGR")
+            st.image(filtered_image, use_column_width=True)
 
 if __name__ == "__main__":
     main()

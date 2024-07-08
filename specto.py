@@ -1,39 +1,38 @@
 import streamlit as st
-import numpy as np
-import matplotlib.pyplot as plt
+import string
 
-st.title("Sine Wave Generator")
+def caesar_cipher(text, shift, alphabet):
+    shifted_alphabet = alphabet[shift:] + alphabet[:shift]
+    table = str.maketrans(alphabet, shifted_alphabet)
+    return text.translate(table)
 
-# Sliders for wave parameters
-amplitude = st.slider("Amplitude", 0.1, 2.0, 1.0, 0.1)
-frequency = st.slider("Frequency", 0.1, 5.0, 1.0, 0.1)
-phase = st.slider("Phase (radians)", 0.0, 2*np.pi, 0.0, 0.1)
+st.title("Text Encryption App")
 
-# Generate x values
-x = np.linspace(0, 2*np.pi, 1000)
+# Input text area
+plaintext = st.text_area("Enter the text to encrypt:", "Hello, World!")
 
-# Generate y values (sine wave)
-y = amplitude * np.sin(frequency * x + phase)
+# Sliders for encryption parameters
+shift = st.slider("Encryption Key (Shift)", 0, 25, 3)
+use_numbers = st.checkbox("Include Numbers", value=True)
+use_symbols = st.checkbox("Include Symbols", value=False)
 
-# Create the plot
-fig, ax = plt.subplots(figsize=(10, 6))
-ax.plot(x, y)
-ax.set_title(f"Sine Wave: A={amplitude}, f={frequency}, φ={phase:.2f}")
-ax.set_xlabel("x")
-ax.set_ylabel("y")
-ax.grid(True)
-ax.axhline(y=0, color='k', linestyle='--', linewidth=0.5)
-ax.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
+# Create the alphabet based on user choices
+alphabet = string.ascii_lowercase
+if use_numbers:
+    alphabet += string.digits
+if use_symbols:
+    alphabet += string.punctuation
 
-# Set y-axis limits based on amplitude
-ax.set_ylim(-2, 2)
+# Encryption button
+if st.button("Encrypt"):
+    encrypted_text = caesar_cipher(plaintext.lower(), shift, alphabet)
+    st.text_area("Encrypted Text:", encrypted_text, height=100)
 
-# Display the plot in Streamlit
-st.pyplot(fig)
+# Decryption section
+st.subheader("Decryption")
+encrypted_input = st.text_area("Enter the text to decrypt:")
+decryption_shift = st.slider("Decryption Key (Shift)", 0, 25, 3)
 
-# Display the equation
-st.latex(f"y = {amplitude:.1f} \sin({frequency:.1f}x + {phase:.2f})")
-
-# Optional: Display raw data
-if st.checkbox("Show raw data"):
-    st.write(pd.DataFrame({"x": x, "y": y}))
+if st.button("Decrypt"):
+    decrypted_text = caesar_cipher(encrypted_input, -decryption_shift, alphabet)
+    st.text_area("Decrypted Text:", decrypted_text, height=100)

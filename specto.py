@@ -1,59 +1,39 @@
 import streamlit as st
-import cv2
 import numpy as np
-from PIL import Image
+import matplotlib.pyplot as plt
 
-def apply_filter(image, filter_name):
-    # Convert PIL Image to numpy array
-    image_np = np.array(image)
-    
-    # Convert RGB to BGR (OpenCV uses BGR)
-    image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
-    
-    if filter_name == "Grayscale":
-        filtered = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
-    elif filter_name == "Blur":
-        filtered = cv2.GaussianBlur(image_bgr, (15, 15), 0)
-    elif filter_name == "Edge Detection":
-        filtered = cv2.Canny(cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY), 100, 200)
-    elif filter_name == "Sepia":
-        sepia_filter = np.array([[0.272, 0.534, 0.131],
-                                 [0.349, 0.686, 0.168],
-                                 [0.393, 0.769, 0.189]])
-        filtered = cv2.transform(image_bgr, sepia_filter)
-    else:
-        filtered = image_bgr
-    
-    # Convert back to RGB for displaying
-    if len(filtered.shape) == 2:  # If grayscale
-        return cv2.cvtColor(filtered, cv2.COLOR_GRAY2RGB)
-    else:
-        return cv2.cvtColor(filtered, cv2.COLOR_BGR2RGB)
+st.title("Sine Wave Generator")
 
-def main():
-    st.title("Image Filter App")
-    
-    uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
-    
-    if uploaded_file is not None:
-        image = Image.open(uploaded_file)
-        
-        filter_name = st.selectbox(
-            "Choose a filter",
-            ("Original", "Grayscale", "Blur", "Edge Detection", "Sepia")
-        )
-        
-        filtered_image = apply_filter(image, filter_name)
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("Original Image")
-            st.image(image, use_column_width=True)
-        
-        with col2:
-            st.subheader(f"{filter_name} Filter")
-            st.image(filtered_image, use_column_width=True)
+# Sliders for wave parameters
+amplitude = st.slider("Amplitude", 0.1, 2.0, 1.0, 0.1)
+frequency = st.slider("Frequency", 0.1, 5.0, 1.0, 0.1)
+phase = st.slider("Phase (radians)", 0.0, 2*np.pi, 0.0, 0.1)
 
-if __name__ == "__main__":
-    main()
+# Generate x values
+x = np.linspace(0, 2*np.pi, 1000)
+
+# Generate y values (sine wave)
+y = amplitude * np.sin(frequency * x + phase)
+
+# Create the plot
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.plot(x, y)
+ax.set_title(f"Sine Wave: A={amplitude}, f={frequency}, φ={phase:.2f}")
+ax.set_xlabel("x")
+ax.set_ylabel("y")
+ax.grid(True)
+ax.axhline(y=0, color='k', linestyle='--', linewidth=0.5)
+ax.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
+
+# Set y-axis limits based on amplitude
+ax.set_ylim(-2, 2)
+
+# Display the plot in Streamlit
+st.pyplot(fig)
+
+# Display the equation
+st.latex(f"y = {amplitude:.1f} \sin({frequency:.1f}x + {phase:.2f})")
+
+# Optional: Display raw data
+if st.checkbox("Show raw data"):
+    st.write(pd.DataFrame({"x": x, "y": y}))

@@ -1,38 +1,40 @@
 import streamlit as st
-import string
+import cv2
+import numpy as np
+from PIL import Image
+import io
 
-def caesar_cipher(text, shift, alphabet):
-    shifted_alphabet = alphabet[shift:] + alphabet[:shift]
-    table = str.maketrans(alphabet, shifted_alphabet)
-    return text.translate(table)
+st.title("Coin Counter App")
+st.write("Upload an image to count the coins.")
 
-st.title("Text Encryption App")
+uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
 
-# Input text area
-plaintext = st.text_area("Enter the text to encrypt:", "Hello, World!")
+if uploaded_file is not None:
+    # Read the image
+    image = Image.open(uploaded_file)
+    img_array = np.array(image)
 
-# Sliders for encryption parameters
-shift = st.slider("Encryption Key (Shift)", 0, 25, 3)
-use_numbers = st.checkbox("Include Numbers", value=True)
-use_symbols = st.checkbox("Include Symbols", value=False)
+    # Convert to grayscale
+    gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
 
-# Create the alphabet based on user choices
-alphabet = string.ascii_lowercase
-if use_numbers:
-    alphabet += string.digits
-if use_symbols:
-    alphabet += string.punctuation
+    # Apply GaussianBlur to reduce noise
+    blurred = cv2.GaussianBlur(gray, (11, 11), 0)
 
-# Encryption button
-if st.button("Encrypt"):
-    encrypted_text = caesar_cipher(plaintext.lower(), shift, alphabet)
-    st.text_area("Encrypted Text:", encrypted_text, height=100)
+    # Detect circles using HoughCircles
+    circles = cv2.HoughCircles(blurred, cv2.HOUGH_GRADIENT, dp=1, minDist=50,
+                               param1=50, param2=30, minRadius=20, maxRadius=100)
 
-# Decryption section
-st.subheader("Decryption")
-encrypted_input = st.text_area("Enter the text to decrypt:")
-decryption_shift = st.slider("Decryption Key (Shift)", 0, 25, 3)
+    coin_count = 0
+    if circles is not None:
+        circles = np.round(circles[0, :]).astype("int")
+        coin_count = len(circles)
 
-if st.button("Decrypt"):
-    decrypted_text = caesar_cipher(encrypted_input, -decryption_shift, alphabet)
-    st.text_area("Decrypted Text:", decrypted_text, height=100)
+        for (x, y, r) in circles:
+            cv2.circle(img_array, (x, y), r, (0, 255, 0), 4)
+            cv2.rectangle(img_array, (x - 5, y - 5), (x + 5, y + 5), (0, 128, 255), -1)
+
+    cv2.putText(img_array, f"Coins: {coin_count}", (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+    st.image(img_array, caption='Processed Image', use_column_width=True)
+    st.write(f"Number of coins detected: {coin_count}")

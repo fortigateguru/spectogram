@@ -37,7 +37,7 @@ if uploaded_file is not None:
             cv2.rectangle(img_array, (x - 5, y - 5), (x + 5, y + 5), (0, 128, 255), -1)
 
     cv2.putText(img_array, f"Coins: {coin_count}", (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
 
     st.image(img_array, caption='Processed Image', use_column_width=True)
     st.write(f"Number of coins detected: {coin_count}")

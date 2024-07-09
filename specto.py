@@ -2,7 +2,6 @@ import streamlit as st
 import cv2
 import numpy as np
 from PIL import Image
-import io
 
 st.title("Coin Counter App")
 st.write("Upload an image to count the coins.")
@@ -18,11 +17,15 @@ if uploaded_file is not None:
     gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
 
     # Apply GaussianBlur to reduce noise
-    blurred = cv2.GaussianBlur(gray, (11, 11), 0)
+    blurred = cv2.GaussianBlur(gray, (15, 15), 0)
+
+    # Use morphological operations to enhance the edges
+    kernel = np.ones((5, 5), np.uint8)
+    morph = cv2.morphologyEx(blurred, cv2.MORPH_CLOSE, kernel)
 
     # Detect circles using HoughCircles
-    circles = cv2.HoughCircles(blurred, cv2.HOUGH_GRADIENT, dp=1, minDist=50,
-                               param1=50, param2=30, minRadius=20, maxRadius=100)
+    circles = cv2.HoughCircles(morph, cv2.HOUGH_GRADIENT, dp=1, minDist=50,
+                               param1=100, param2=30, minRadius=20, maxRadius=100)
 
     coin_count = 0
     if circles is not None:
